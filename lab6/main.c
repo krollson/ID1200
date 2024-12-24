@@ -8,12 +8,60 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <stdio.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <unistd.h>
+#include <sys/stat.h>
+
+int clear_file(char *file) {
+    int fd = open(file, O_RDWR);
+    if (fd == -1) {
+        perror("open clearing");
+        return -1;
+    }
+
+    if (ftruncate(fd, 0) == -1) {
+        perror("ftruncate clearing");
+        close(fd);
+        return -1;
+    }
+
+    size_t new_size = 2 * 1024 * 1024; // 2 MB
+    if (ftruncate(fd, new_size) == -1) {
+        perror("ftruncate resizing");
+        close(fd);
+        return -1;
+    }
+
+    char *map_ptr = mmap(NULL, new_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map_ptr == MAP_FAILED) {
+        perror("mmap");
+        close(fd);
+        return -1;
+    }
+
+    for (size_t i = 0; i < new_size; ++i) {
+        map_ptr[i] = 0;
+    }
+
+    if (munmap(map_ptr, new_size) == -1) {
+        perror("munmap");
+        close(fd);
+        return -1;
+    }
+
+    close(fd);
+
+    printf("File cleared and resized to 2 MB successfully.\n");
+    return 1;
+}
+
 int main(int argc, char *argv[])
 {
     char *mmaped_ptr;
     int fd;
     struct stat sb;
-    sem_t *sem_parent, *sem_child;
 
     if (argc != 2 || strcmp(argv[1], "--help") == 0)
     {
@@ -21,6 +69,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    int cleared_file = clear_file(argv[1]);
+    if(cleared_file == -1)
+    {
+        exit(EXIT_FAILURE);
+    }
+    
     fd = open(argv[1], O_RDWR);
     if (fd == -1)
     {
