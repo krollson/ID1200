@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/kristoffer/KTH/ID1200-os/lab4/main'
+relocations:     []
+...
