@@ -44,13 +44,25 @@ int main(int argc, char *argv[])
     {
         // Child
         mmaped_ptr = mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        printf("Child process, pid = %d; mmap address %p\n", pid, mmaped_ptr);
+        // printf("Child process, pid = %d; mmap address %p\n", pid, mmaped_ptr);
+        char* write = "01234";
+        strncpy(&mmaped_ptr[0], write, 5);
+        char read[6];
+        strncpy(read, &mmaped_ptr[4096], 5);
+        read[5] = '\0';
+        printf("Child process, pid = %d; read from mmaped[4096] %s\n", pid, read);
     }
     else
     {
         // Parent process
         mmaped_ptr = mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        printf("Parent process, pid = %d; mmap address %p\n", pid, mmaped_ptr);
+        // printf("Parent process, pid = %d; mmap address %p\n", pid, mmaped_ptr);
+        char* write = "56789";
+        strncpy(&mmaped_ptr[4096], write, 5);
+        char read[6];
+        strncpy(read, mmaped_ptr, 5);
+        read[5] = '\0';
+        printf("Parent process, pid = %d; read from mmaped[0] %s\n", pid, read);
     }
 
     // Wait for child process to finish
