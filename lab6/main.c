@@ -40,17 +40,7 @@ int clear_file(char *file) {
         close(fd);
         return -1;
     }
-
-    for (size_t i = 0; i < new_size; ++i) {
-        map_ptr[i] = 0;
-    }
-
-    if (munmap(map_ptr, new_size) == -1) {
-        perror("munmap");
-        close(fd);
-        return -1;
-    }
-
+    
     close(fd);
 
     printf("File cleared and resized to 2 MB successfully.\n");
@@ -74,7 +64,7 @@ int main(int argc, char *argv[])
     {
         exit(EXIT_FAILURE);
     }
-    
+
     fd = open(argv[1], O_RDWR);
     if (fd == -1)
     {
@@ -119,7 +109,6 @@ int main(int argc, char *argv[])
         printf("Parent process, pid = %d; read from mmaped[0] %s\n", pid, read);
     }
 
-    // Wait for child process to finish
     wait(NULL);
 
     close(fd);
