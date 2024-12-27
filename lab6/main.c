@@ -8,42 +8,41 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include <stdio.h>
-#include <fcntl.h>
-#include <sys/mman.h>
-#include <unistd.h>
-#include <sys/stat.h>
-
-int clear_file(char *file) {
+int clear_file(char *file)
+{
     int fd = open(file, O_RDWR);
-    if (fd == -1) {
+    if (fd == -1)
+    {
         perror("open clearing");
         return -1;
     }
 
-    if (ftruncate(fd, 0) == -1) {
+    if (ftruncate(fd, 0) == -1)
+    {
         perror("ftruncate clearing");
         close(fd);
         return -1;
     }
 
     size_t new_size = 2 * 1024 * 1024; // 2 MB
-    if (ftruncate(fd, new_size) == -1) {
+    if (ftruncate(fd, new_size) == -1)
+    {
         perror("ftruncate resizing");
         close(fd);
         return -1;
     }
 
     char *map_ptr = mmap(NULL, new_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (map_ptr == MAP_FAILED) {
+    if (map_ptr == MAP_FAILED)
+    {
         perror("mmap");
         close(fd);
         return -1;
     }
-    
+
     close(fd);
 
-    printf("File cleared and resized to 2 MB successfully.\n");
+    printf("File cleared\n");
     return 1;
 }
 
@@ -52,6 +51,9 @@ int main(int argc, char *argv[])
     char *mmaped_ptr;
     int fd;
     struct stat sb;
+    pid_t pid, fv;
+    sem_t *sem_parent;
+    sem_t *sem_child;
 
     if (argc != 2 || strcmp(argv[1], "--help") == 0)
     {
@@ -59,8 +61,9 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    int cleared_file = clear_file(argv[1]);
-    if(cleared_file == -1)
+    int cleared_file = clear_file(argv[1]); // jag vet inte om man ska göra det här, 
+                                            // men har med det för att få det att kännas som en ny fil varje gång
+    if (cleared_file == -1)
     {
         exit(EXIT_FAILURE);
     }
@@ -78,39 +81,73 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    int pid = fork();
-    if (pid == -1)
+    sem_parent = sem_open("/parent_sem", O_CREAT | O_EXCL, 0600, 0);
+    if (sem_parent == SEM_FAILED)
+    {
+        perror("parent sem open\n");
+        exit(EXIT_FAILURE);
+    }
+    sem_child = sem_open("/child_sem", O_CREAT | O_EXCL, 0600, 0);
+    if (sem_child == SEM_FAILED)
+    {
+        perror("child sem open\n");
+        exit(EXIT_FAILURE);
+    }
+    fv = fork();
+    if (fv < 0)
     {
         perror("fork");
         exit(EXIT_FAILURE);
     }
-    else if (pid == 0)
+    else if (fv == 0)
     {
         // Child
         mmaped_ptr = mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        // printf("Child process, pid = %d; mmap address %p\n", pid, mmaped_ptr);
-        char* write = "01234";
+        pid = getpid();
+        printf("Child process, pid = %d; mmap address %p\n", pid, mmaped_ptr); // PRINT FÖR FÖRSTA DELEN
+        char *write = "01234";
         strncpy(&mmaped_ptr[0], write, 5);
+        // KOMMENTERA TILLBAKA NEDAN FÖR SISTA DELEN
+        // if (msync(mmaped_ptr, sb.st_size, MS_SYNC) == -1)
+        // {
+        //     perror("msync child\n");
+        //     exit(EXIT_FAILURE);
+        // }
+        // sem_post(sem_child);
+        // sem_wait(sem_parent);
         char read[6];
         strncpy(read, &mmaped_ptr[4096], 5);
         read[5] = '\0';
-        printf("Child process, pid = %d; read from mmaped[4096] %s\n", pid, read);
+        printf("Child process, pid = %d; read from mmaped[4096] %s\n", pid, read); // PRINT FÖR ANDRA OCH TREDJE DELEN
     }
     else
     {
         // Parent process
         mmaped_ptr = mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-        // printf("Parent process, pid = %d; mmap address %p\n", pid, mmaped_ptr);
-        char* write = "56789";
+        pid = getpid();
+        printf("Parent process, pid = %d; mmap address %p\n", pid, mmaped_ptr); // PRINT FÖR FÖRSTA DELEN
+        char *write = "56789";
         strncpy(&mmaped_ptr[4096], write, 5);
+        // KOMMENTERA TILLBAKA NEDAN FÖR SISTA DELEN
+        // if (msync(mmaped_ptr, sb.st_size, MS_SYNC) == -1)
+        // {
+        //     perror("msync parent\n");
+        //     exit(EXIT_FAILURE);
+        // }
+        // sem_post(sem_parent);
+        // sem_wait(sem_child);
         char read[6];
         strncpy(read, mmaped_ptr, 5);
         read[5] = '\0';
-        printf("Parent process, pid = %d; read from mmaped[0] %s\n", pid, read);
+        printf("Parent process, pid = %d; read from mmaped[0] %s\n", pid, read); // PRINT FÖR ANDRA OCH TREDJE DELEN
     }
 
     wait(NULL);
-
+    sem_close(sem_child);
+    sem_unlink("/child_sem");
+    sem_close(sem_parent);
+    sem_unlink("/parent_sem");
+    munmap(mmaped_ptr, sb.st_size);
     close(fd);
 
     exit(EXIT_SUCCESS);
