@@ -104,42 +104,42 @@ int main(int argc, char *argv[])
         // Child
         mmaped_ptr = mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         pid = getpid();
-        printf("Child process, pid = %d; mmap address %p\n", pid, mmaped_ptr); // PRINT FÖR FÖRSTA DELEN
+        // printf("Child process, pid = %d; mmap address %p\n", pid, mmaped_ptr); // print q1
         char *write = "01234";
         strncpy(&mmaped_ptr[0], write, 5);
-        // KOMMENTERA TILLBAKA NEDAN FÖR SISTA DELEN
-        // if (msync(mmaped_ptr, sb.st_size, MS_SYNC) == -1)
-        // {
-        //     perror("msync child\n");
-        //     exit(EXIT_FAILURE);
-        // }
-        // sem_post(sem_child);
-        // sem_wait(sem_parent);
+        int mr = msync(mmaped_ptr, sb.st_size, MS_SYNC);
+        if (mr == -1)
+        {
+            perror("msync child\n");
+            exit(EXIT_FAILURE);
+        }
+        sem_post(sem_child);
+        sem_wait(sem_parent);
         char read[6];
         strncpy(read, &mmaped_ptr[4096], 5);
         read[5] = '\0';
-        printf("Child process, pid = %d; read from mmaped[4096] %s\n", pid, read); // PRINT FÖR ANDRA OCH TREDJE DELEN
+        printf("Child process, pid = %d; read from mmaped[4096] %s\n", pid, read); // print q2, 3
     }
     else
     {
         // Parent process
         mmaped_ptr = mmap(NULL, sb.st_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
         pid = getpid();
-        printf("Parent process, pid = %d; mmap address %p\n", pid, mmaped_ptr); // PRINT FÖR FÖRSTA DELEN
+        // printf("Parent process, pid = %d; mmap address %p\n", pid, mmaped_ptr); // print q1
         char *write = "56789";
         strncpy(&mmaped_ptr[4096], write, 5);
-        // KOMMENTERA TILLBAKA NEDAN FÖR SISTA DELEN
-        // if (msync(mmaped_ptr, sb.st_size, MS_SYNC) == -1)
-        // {
-        //     perror("msync parent\n");
-        //     exit(EXIT_FAILURE);
-        // }
-        // sem_post(sem_parent);
-        // sem_wait(sem_child);
+        int mr = msync(mmaped_ptr, sb.st_size, MS_SYNC);
+        if (mr == -1)
+        {
+            perror("msync parent\n");
+            exit(EXIT_FAILURE);
+        }
+        sem_post(sem_parent);
+        sem_wait(sem_child);
         char read[6];
         strncpy(read, mmaped_ptr, 5);
         read[5] = '\0';
-        printf("Parent process, pid = %d; read from mmaped[0] %s\n", pid, read); // PRINT FÖR ANDRA OCH TREDJE DELEN
+        printf("Parent process, pid = %d; read from mmaped[0] %s\n", pid, read); // // print q2, 3
     }
 
     wait(NULL);
